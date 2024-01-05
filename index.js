@@ -1,66 +1,65 @@
 const express = require('express');
+const cors = require("cors");
 const app = express();
-const {Web3} = require("web3");
-const ABI = require("./ABI.json");
-app.use(express.json())
-const web3 = new Web3("HTTP://127.0.0.1:7545")
-const contractAddress = "0x9036181112dFeaBA2bA1aB481f8D9FAc73c50673"; 
+require('dotenv').config()
 
+const {Web3} = require("web3");
+const ABI = require("./ABI.json")
+app.use(cors())
+app.use(express.json())
+
+const API_KEY = process.env.API_KEY;
+const PORT = process.env.PORT || 3000;
+const web3 = new Web3(`https://eth-sepolia.g.alchemy.com/v2/${API_KEY}`)
+const contractAddress = "0xF963B68cd3D7a7DCe9568BF0feDd76098363EA9C";
 const contract = new web3.eth.Contract(ABI,contractAddress);
 
-
-
-//gender verification
-
-
-const genderVerify = (gender)=>{
-    const genderData = gender.toLowerCase();
-    if(genderData==="male" || genderData==="female" || genderData==="others"){
-        return true;
-    }else{
-        return false;
-    }
+const genderVerification = (gender)=>{
+   const genderData = gender.toLowerCase();
+   if(genderData==="male" || genderData==="female" || genderData==="others"){
+     return true;
+   }else{
+     return false;
+   }
 }
-const partyClash=async(party)=>{
-    const candidateInfo = await contract.methods.candidateList().call();
-    const exists = candidateInfo.some((candidate)=>candidate.party===party);
-    return exists;
+
+const partyClashStatus=async(party)=>{
+   const candidateInfo = await contract.methods.candidateList().call();
+   const exists = candidateInfo.some((candidate)=>candidate.party===party);
+   return exists;
 }
-app.post("/api/voter-verification",(req,res)=>{
-    const {gender} = req.body; 
-    const status = genderVerify(gender)
+
+app.post("/api/voter-verfication",(req,res)=>{
+    const {gender} = req.body;
+    const status = genderVerification(gender)
     if(status){
-        res.status(200).json({message:"Registration Successful"})
+       res.status(200).json({message:"Gender valid"})
     }else{
-        res.status(404).json({message:"Gender Invalid"})
-    }
+        res.status(403).json({message:"Gender Invalid"})
+    } 
 })
 
-//Time verification
 app.post("/api/time-bound",(req,res)=>{
-    const {startTime,endTime} = req.body;
-    if(endTime-startTime < 86400 ){
-        res.status(200).json({message:"Voting time Started"})
+    const {startTimeSeconds,endTimeSeconds}=req.body;
+    if(endTimeSeconds-startTimeSeconds<86400){
+        res.status(200).json({message:"Voting Timer Started"})
     }else{
-        res.status(404).json({message:"Voting time is greater than 24hrs"})
+        res.status(403).json({message:"Voting Time Must Be Less Than 24 hours"})
     }
 })
 
-//Candidate verification
+app.post("/api/candidate-verification",async(req,res)=>{
+    const {gender,party}=req.body;
+    const partyStatus = await partyClashStatus(party);
+    const genderStatus = genderVerification(gender);
 
-app.post("/api/candidate-verfy",async(req,res)=>{
-    const {party,gender} = req.body;
-    const partystatus = await partyClash(party);
-    const genderStatus = genderVerify(gender);
-
-    if(genderStatus && partystatus!==true){
-        res.status(200).json({message:"Registration successful"})
+    if(genderStatus===true && partyStatus!==true){
+        res.status(200).json({message:"Gender and party are vaild"})
     }else{
-        res.status(404).json({message:"Either party or Gender is not valid"})
+        res.status(403).json({message:"Either Party Name or Gender is not valid"})
     }
-    
-    
 })
-app.listen(3000,()=>{
-    console.log("Server 3000 is running")
+
+app.listen(PORT,()=>{
+    console.log(`Server is running at ${PORT}`)
 })
